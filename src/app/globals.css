@@ -1,26 +1,240 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  --background: #ededf0;
   --foreground: #171717;
+  --surface: #f5f5f7;
+  --surface-hover: #ededf0;
+  --border: #c8c8cd;
+  --border-light: #d8d8dd;
+  --muted: #636369;
+  --muted-light: #9898a0;
+  --input-bg: #ffffff;
+}
+
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --surface: rgba(39, 39, 42, 0.5);
+  --surface-hover: rgba(39, 39, 42, 0.8);
+  --border: #3f3f46;
+  --border-light: #27272a;
+  --muted: #a1a1aa;
+  --muted-light: #71717a;
+  --input-bg: #27272a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-border-light: var(--border-light);
+  --color-muted: var(--muted);
+  --color-muted-light: var(--muted-light);
+  --color-input-bg: var(--input-bg);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--background) !important;
+  color: var(--foreground) !important;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+input[type="number"],
+input[type="text"],
+input:not([type]),
+select {
+  background: var(--input-bg) !important;
+  border-color: var(--border) !important;
+  color: var(--foreground) !important;
+}
+
+input::placeholder {
+  color: var(--muted-light);
+}
+
+/* ライトモードで色のコントラスト強化 */
+:root:not(.dark) .text-green-400 { color: #15803d !important; }
+:root:not(.dark) .text-red-400 { color: #b91c1c !important; }
+:root:not(.dark) .text-blue-400 { color: #1d4ed8 !important; }
+:root:not(.dark) .text-yellow-400 { color: #a16207 !important; }
+:root:not(.dark) .text-orange-400 { color: #c2410c !important; }
+
+/* ===== 印刷 ===== */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    margin: 12mm 10mm;
+    size: A4 landscape;
+  }
+
+  html, body {
+    background: white !important;
+    color: #111 !important;
+    font-size: 8pt !important;
+    line-height: 1.4 !important;
+    font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif !important;
+  }
+
+  /* 非表示 */
+  [data-print="hide"] {
+    display: none !important;
+  }
+  button {
+    display: none !important;
+  }
+  input, select {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    font-size: inherit !important;
+    width: auto !important;
+  }
+
+  /* レイアウト */
+  .min-h-screen { min-height: auto !important; padding: 0 !important; }
+  .grid { display: block !important; }
+  section { border: none !important; padding: 0 !important; margin-bottom: 10pt !important; }
+
+  /* KPIカード */
+  [data-section="kpi"] {
+    display: flex !important;
+    gap: 0;
+    margin-bottom: 14pt;
+    border: 1pt solid #333 !important;
+    border-radius: 0 !important;
+  }
+  [data-section="kpi"] > div {
+    flex: 1;
+    padding: 6pt 10pt !important;
+    border: none !important;
+    border-right: 1pt solid #ccc !important;
+    border-radius: 0 !important;
+  }
+  [data-section="kpi"] > div:last-child {
+    border-right: none !important;
+  }
+  [data-section="kpi"] p:first-child {
+    font-size: 7pt !important;
+    color: #555 !important;
+    margin-bottom: 2pt;
+  }
+  [data-section="kpi"] p:last-child {
+    font-size: 12pt !important;
+    font-weight: 700 !important;
+    color: #111 !important;
+  }
+
+  /* チャート */
+  [data-section="chart"] {
+    page-break-after: always;
+  }
+  [data-section="chart"] h2 {
+    font-size: 10pt !important;
+    font-weight: 700;
+    margin-bottom: 6pt;
+    border-bottom: 1pt solid #333;
+    padding-bottom: 3pt;
+  }
+
+  /* テーブル */
+  [data-section="table"] {
+    page-break-before: auto;
+  }
+  [data-section="table"] h2 {
+    font-size: 10pt !important;
+    font-weight: 700;
+    margin-bottom: 6pt;
+    border-bottom: 1pt solid #333;
+    padding-bottom: 3pt;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 7.5pt !important;
+    page-break-inside: auto;
+  }
+  thead { display: table-header-group; }
+  thead tr {
+    background: #f0f0f0 !important;
+    border-bottom: 1.5pt solid #333 !important;
+  }
+  thead th {
+    padding: 4pt 5pt !important;
+    font-weight: 700 !important;
+    color: #333 !important;
+    white-space: nowrap;
+  }
+  tbody tr {
+    border-bottom: 0.5pt solid #ddd !important;
+  }
+  tbody tr:nth-child(even) {
+    background: #fafafa !important;
+  }
+  tbody td {
+    padding: 3pt 5pt !important;
+    white-space: nowrap;
+  }
+
+  /* テーブルの色 */
+  .text-green-400 { color: #15803d !important; }
+  .text-red-400 { color: #b91c1c !important; }
+  .text-blue-400 { color: #1d4ed8 !important; }
+  .text-yellow-400 { color: #a16207 !important; }
+  .text-orange-400 { color: #c2410c !important; }
+  .text-muted { color: #555 !important; }
+  .text-muted-light { color: #888 !important; }
+  .text-foreground { color: #111 !important; }
+
+  .bg-green-600\/60 { background: #22c55e !important; }
+  .bg-red-600\/60 { background: #ef4444 !important; }
+  .bg-red-900\/20 { background: #fef2f2 !important; }
+  .bg-green-900\/20 { background: #f0fdf4 !important; }
+  .bg-surface { background: #f5f5f5 !important; }
+
+  /* タイトル */
+  h1 {
+    font-size: 14pt !important;
+    border-bottom: 2pt solid #111;
+    padding-bottom: 4pt;
+    margin-bottom: 4pt;
+  }
+  h1 + p {
+    font-size: 8pt !important;
+    color: #555 !important;
+    margin-bottom: 10pt;
+  }
+
+  /* 凡例 */
+  [data-section="chart"] .flex.gap-4 {
+    font-size: 7pt !important;
+  }
+
+  /* 比較セクション */
+  .border-yellow-700\/50 {
+    border-color: #ca8a04 !important;
+  }
+
+  /* 印刷日時 */
+  [data-section="table"]::after {
+    content: "";
+    display: block;
+    margin-top: 8pt;
+    font-size: 7pt;
+    color: #999;
+    text-align: right;
+  }
 }
