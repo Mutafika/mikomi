@@ -2,13 +2,16 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useSimState } from "@/hooks/useSimState";
-import { calcTimeline } from "@/lib/calc";
+import { calcTimeline, calcGoalReverse, generateSummary } from "@/lib/calc";
 import type { TimelineResult } from "@/lib/calc";
 import { SOCIAL_INSURANCE_RATE } from "@/types";
 import type { IncentiveType, RepaymentType } from "@/types";
 import { CashFlowChart, ProfitChart } from "@/components/Charts";
 import { fixedCostPresets, oneTimeCostPresets, rolePresets } from "@/lib/presets";
 import { ComboBox } from "@/components/ComboBox";
+import { Tip } from "@/components/Tooltip";
+import { Guide } from "@/components/Guide";
+import { ProgressBar } from "@/components/ProgressBar";
 import { Onboarding } from "@/components/Onboarding";
 
 const selectAll = (e: React.FocusEvent<HTMLInputElement>) => e.target.select();
@@ -26,6 +29,7 @@ function fmtMan(n: number): string {
 export default function Home() {
   const {
     state, scenarios, loaded, onboarded,
+    canUndo, canRedo, undo, redo,
     completeOnboarding,
     addPlan, updatePlan, removePlan, setSimulationMonths, setInitialCash, updateTax,
     addEmployee, updateEmployee, removeEmployee,
@@ -33,7 +37,7 @@ export default function Home() {
     addOneTimeCost, updateOneTimeCost, removeOneTimeCost,
     addLoan, updateLoan, removeLoan,
     updateActual,
-    saveScenario, loadScenario, deleteScenario,
+    saveScenario, overwriteScenario, renameScenario, loadScenario, duplicateScenario, deleteScenario,
     importState,
   } = useSimState();
 
@@ -41,6 +45,7 @@ export default function Home() {
   const [compareId, setCompareId] = useState<string | null>(null);
   const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
   const [showScenarioModal, setShowScenarioModal] = useState(false);
+  const [targetMrr, setTargetMrr] = useState(1000000);
   const [isDark, setIsDark] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -120,7 +125,10 @@ export default function Home() {
         </span>
 
         <div data-print="hide" className="flex items-center gap-1">
-          <button onClick={() => setShowScenarioModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded">シナリオ</button>
+          <button onClick={undo} disabled={!canUndo} className="bg-border hover:bg-surface-hover text-foreground text-sm px-2 py-1 rounded disabled:opacity-30" title="元に戻す">↩</button>
+          <button onClick={redo} disabled={!canRedo} className="bg-border hover:bg-surface-hover text-foreground text-sm px-2 py-1 rounded disabled:opacity-30" title="やり直す">↪</button>
+          <span className="w-px h-5 bg-border mx-1" />
+          <button data-guide="scenario" onClick={() => setShowScenarioModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded">シナリオ</button>
           <button onClick={handleExport} className="bg-border hover:bg-surface-hover text-foreground text-sm px-2 py-1 rounded">書出</button>
           <button onClick={() => fileInputRef.current?.click()} className="bg-border hover:bg-surface-hover text-foreground text-sm px-2 py-1 rounded">取込</button>
           <button onClick={() => window.print()} className="bg-border hover:bg-surface-hover text-foreground text-sm px-2 py-1 rounded">印刷</button>
@@ -163,24 +171,38 @@ export default function Home() {
               <div className="space-y-2">
                 {scenarios.map((s) => (
                   <div key={s.id} className={`p-3 rounded border ${activeScenarioId === s.id ? "border-blue-500 bg-blue-500/10" : compareId === s.id ? "border-yellow-400 bg-yellow-400/10" : "border-border"}`}>
-                    <p className="font-medium mb-2">
-                      {activeScenarioId === s.id && <span className="text-blue-400 mr-1">●</span>}
-                      {compareId === s.id && <span className="text-yellow-400 mr-1">◆</span>}
-                      {s.name}
-                    </p>
+                    <div className="flex items-center gap-2 mb-2">
+                      {activeScenarioId === s.id && <span className="text-blue-400">●</span>}
+                      {compareId === s.id && <span className="text-yellow-400">◆</span>}
+                      <input
+                        value={s.name}
+                        onChange={(e) => renameScenario(s.id, e.target.value)}
+                        className="font-medium bg-transparent border-b border-transparent hover:border-border focus:border-blue-500 outline-none flex-1 text-sm py-0.5"
+                      />
+                      <button
+                        onClick={() => { if (confirm(`「${s.name}」を削除？`)) { deleteScenario(s.id); if (activeScenarioId === s.id) setActiveScenarioId(null); if (compareId === s.id) setCompareId(null); } }}
+                        className="text-red-400 hover:text-red-300 text-sm"
+                      >✕</button>
+                    </div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => { loadScenario(s.id); setActiveScenarioId(s.id); setShowScenarioModal(false); }}
                         className={`text-sm px-3 py-1 rounded flex-1 ${activeScenarioId === s.id ? "bg-blue-600 text-white" : "bg-surface hover:bg-surface-hover border border-border"}`}
                       >{activeScenarioId === s.id ? "選択中" : "選択"}</button>
+                      {activeScenarioId === s.id && (
+                        <button
+                          onClick={() => { overwriteScenario(s.id); }}
+                          className="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1 rounded"
+                        >上書き保存</button>
+                      )}
                       <button
                         onClick={() => setCompareId(compareId === s.id ? null : s.id)}
-                        className={`text-sm px-3 py-1 rounded flex-1 ${compareId === s.id ? "bg-yellow-500 text-black" : "bg-surface hover:bg-surface-hover border border-border"}`}
+                        className={`text-sm px-3 py-1 rounded ${compareId === s.id ? "bg-yellow-500 text-black" : "bg-surface hover:bg-surface-hover border border-border"}`}
                       >{compareId === s.id ? "比較中" : "比較"}</button>
                       <button
-                        onClick={() => { if (confirm(`「${s.name}」を削除？`)) { deleteScenario(s.id); if (activeScenarioId === s.id) setActiveScenarioId(null); if (compareId === s.id) setCompareId(null); } }}
-                        className="text-red-400 hover:text-red-300 text-sm px-2"
-                      >✕</button>
+                        onClick={() => duplicateScenario(s.id)}
+                        className="bg-surface hover:bg-surface-hover border border-border text-sm px-2 py-1 rounded"
+                      >複製</button>
                     </div>
                   </div>
                 ))}
@@ -192,19 +214,22 @@ export default function Home() {
 
       {/* KPIカード */}
       <div data-section="kpi" className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <KpiCard label="単月黒字化" value={result.breakEvenMonth ? `${result.breakEvenMonth}ヶ月目` : "期間内に達成せず"} color={result.breakEvenMonth ? "text-green-400" : "text-red-400"} />
-        <KpiCard label="最終月MRR" value={lastMonth ? fmtMan(lastMonth.mrr) : "-"} color="text-blue-400" />
-        <KpiCard label="最終月キャッシュ" value={lastMonth ? fmtMan(lastMonth.cashBalance) : "-"} color={lastMonth && lastMonth.cashBalance >= 0 ? "text-green-400" : "text-red-400"} />
+        <KpiCard label="単月黒字化" value={result.breakEvenMonth ? `${result.breakEvenMonth}ヶ月目` : "期間内に達成せず"} color={result.breakEvenMonth ? "text-green-400" : "text-red-400"} tip="売上がコストを上回る最初の月" />
+        <KpiCard label="最終月MRR" value={lastMonth ? fmtMan(lastMonth.mrr) : "-"} color="text-blue-400" tip="MRR = 月間の定期収益。顧客数×月額単価" />
+        <KpiCard label="最終月キャッシュ" value={lastMonth ? fmtMan(lastMonth.cashBalance) : "-"} color={lastMonth && lastMonth.cashBalance >= 0 ? "text-green-400" : "text-red-400"} tip="手元に残る現金。マイナスなら資金不足" />
         <KpiCard
           label={result.runway !== null ? "ランウェイ" : "資金枯渇"}
           value={result.cashOutMonth ? `${result.cashOutMonth}ヶ月目に枯渇` : result.runway !== null ? `残り${result.runway}ヶ月` : "安全"}
           color={result.cashOutMonth ? "text-red-400" : "text-green-400"}
+          tip="今のペースであと何ヶ月お金が持つか"
         />
         {state.loans.length > 0 && (
-          <KpiCard label="ローン残高" value={fmtMan(result.totalLoanBalance)} color={result.totalLoanBalance > 0 ? "text-yellow-400" : "text-green-400"} />
+          <KpiCard label="ローン残高" value={fmtMan(result.totalLoanBalance)} tip="融資の未返済額" color={result.totalLoanBalance > 0 ? "text-yellow-400" : "text-green-400"} />
         )}
       </div>
 
+      <ProgressBar state={state} />
+      <Guide />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 左: 入力 */}
         <div data-print="hide" className="space-y-4 lg:col-span-1">
@@ -212,8 +237,8 @@ export default function Home() {
           <section className="border border-border rounded-lg p-4">
             <h2 className="text-base font-semibold mb-3">基本設定</h2>
             <div className="space-y-3">
-              <NumberInput label="初期資金" value={state.initialCash} onChange={setInitialCash} step={1000000} suffix="円" />
-              <NumberInput label="シミュレーション期間" value={state.simulationMonths} onChange={setSimulationMonths} step={6} suffix="ヶ月" min={6} max={60} />
+              <NumberInput label="初期資金" value={state.initialCash} onChange={setInitialCash} step={1000000} suffix="円" tip="事業開始時の手持ち資金。自己資金+出資など" />
+              <NumberInput label="シミュレーション期間" value={state.simulationMonths} onChange={setSimulationMonths} step={6} suffix="ヶ月" min={6} max={60} tip="何ヶ月先まで予測するか。通常24-36ヶ月" />
             </div>
           </section>
 
@@ -222,7 +247,7 @@ export default function Home() {
             <h2 className="text-base font-semibold mb-3">税金</h2>
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <label className="text-sm text-muted shrink-0">法人税実効税率</label>
+                <label className="text-sm text-muted shrink-0"><Tip text="利益にかかる税金。中小企業は約25%">法人税実効税率</Tip></label>
                 <div className="flex items-center gap-1.5">
                   <input type="number" value={state.tax.corporateTaxRate ? (state.tax.corporateTaxRate * 100).toFixed(0) : ""} onChange={(e) => updateTax({ corporateTaxRate: Number(e.target.value) / 100 })} onFocus={selectAll} className="bg-zinc-800 border border-zinc-600 rounded px-2 py-1.5 text-sm text-right w-36" step={1} min={0} max={100} />
                   <span className="text-muted text-sm w-8">%</span>
@@ -230,19 +255,19 @@ export default function Home() {
               </div>
               <p className="text-sm text-muted-light text-right">中小企業: 約25%</p>
               <div className="flex items-center justify-between gap-3">
-                <label className="text-sm text-muted shrink-0">消費税率</label>
+                <label className="text-sm text-muted shrink-0"><Tip text="売上にかかる税。現在10%">消費税率</Tip></label>
                 <div className="flex items-center gap-1.5">
                   <input type="number" value={state.tax.consumptionTaxRate ? (state.tax.consumptionTaxRate * 100).toFixed(0) : ""} onChange={(e) => updateTax({ consumptionTaxRate: Number(e.target.value) / 100 })} onFocus={selectAll} className="bg-zinc-800 border border-zinc-600 rounded px-2 py-1.5 text-sm text-right w-36" step={1} min={0} max={100} />
                   <span className="text-muted text-sm w-8">%</span>
                 </div>
               </div>
-              <NumberInput label="消費税免税期間" value={state.tax.consumptionTaxExemptMonths} onChange={(v) => updateTax({ consumptionTaxExemptMonths: v })} step={12} suffix="ヶ月" min={0} />
+              <NumberInput label="消費税免税期間" value={state.tax.consumptionTaxExemptMonths} onChange={(v) => updateTax({ consumptionTaxExemptMonths: v })} step={12} suffix="ヶ月" min={0} tip="資本金1000万未満なら最大24ヶ月免税" />
               <p className="text-sm text-muted-light text-right">資本金1000万未満: 最大24ヶ月免税</p>
             </div>
           </section>
 
           {/* 売上モデル */}
-          <section className="border border-border rounded-lg p-4">
+          <section data-guide="plans" className="border border-border rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-semibold">料金プラン ({state.revenueModel.plans.length})</h2>
               <button onClick={() => addPlan({ name: `プラン${state.revenueModel.plans.length + 1}`, unitPrice: 10000, initialCustomers: 0, monthlyNewCustomers: 5, monthlyChurnRate: 0.03 })} className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-2.5 py-1 rounded">+ 追加</button>
@@ -256,12 +281,12 @@ export default function Home() {
                     <button onClick={() => removePlan(plan.id)} className="text-red-400 hover:text-red-300 text-sm px-1.5">×</button>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <div><label className="text-sm text-muted">月額単価</label><input type="number" value={plan.unitPrice || ""} onChange={(e) => updatePlan(plan.id, { unitPrice: Number(e.target.value) })} onFocus={selectAll} className="bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm text-right w-full" step={1000} /></div>
+                    <div><label className="text-sm text-muted"><Tip text="1顧客あたりの月額料金">月額単価</Tip></label><input type="number" value={plan.unitPrice || ""} onChange={(e) => updatePlan(plan.id, { unitPrice: Number(e.target.value) })} onFocus={selectAll} className="bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm text-right w-full" step={1000} /></div>
                     <div><label className="text-sm text-muted">初期顧客数</label><input type="number" value={plan.initialCustomers || ""} onChange={(e) => updatePlan(plan.id, { initialCustomers: Number(e.target.value) })} onFocus={selectAll} className="bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm text-right w-full" step={1} /></div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <div><label className="text-sm text-muted">月間新規獲得</label><input type="number" value={plan.monthlyNewCustomers || ""} onChange={(e) => updatePlan(plan.id, { monthlyNewCustomers: Number(e.target.value) })} onFocus={selectAll} className="bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm text-right w-full" step={1} /></div>
-                    <div><label className="text-sm text-muted">月間解約率</label><div className="flex items-center gap-1"><input type="number" value={plan.monthlyChurnRate ? (plan.monthlyChurnRate * 100).toFixed(1) : ""} onChange={(e) => updatePlan(plan.id, { monthlyChurnRate: Number(e.target.value) / 100 })} onFocus={selectAll} className="bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm text-right flex-1" step={0.5} min={0} max={100} /><span className="text-sm text-muted">%</span></div></div>
+                    <div><label className="text-sm text-muted"><Tip text="自然流入やマーケで獲得する月間数。営業の獲得は別">月間新規獲得</Tip></label><input type="number" value={plan.monthlyNewCustomers || ""} onChange={(e) => updatePlan(plan.id, { monthlyNewCustomers: Number(e.target.value) })} onFocus={selectAll} className="bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm text-right w-full" step={1} /></div>
+                    <div><label className="text-sm text-muted"><Tip text="SaaS平均: 3-5%。飲食: 20-30%。低いほど安定">月間解約率</Tip></label><div className="flex items-center gap-1"><input type="number" value={plan.monthlyChurnRate ? (plan.monthlyChurnRate * 100).toFixed(1) : ""} onChange={(e) => updatePlan(plan.id, { monthlyChurnRate: Number(e.target.value) / 100 })} onFocus={selectAll} className="bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm text-right flex-1" step={0.5} min={0} max={100} /><span className="text-sm text-muted">%</span></div></div>
                   </div>
                 </div>
               ))}
@@ -269,7 +294,7 @@ export default function Home() {
           </section>
 
           {/* 社員 */}
-          <section className="border border-border rounded-lg p-4">
+          <section data-guide="employees" className="border border-border rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-semibold">採用計画 ({state.employees.length}人)</h2>
               <button onClick={() => addEmployee({ name: `社員${state.employees.length + 1}`, role: "エンジニア", monthlySalary: 300000, hireMonth: 6, onboardingCost: 200000, annualRaiseRate: 0.03, monthlyAcquisition: 0, rampUpMonths: 0, incentive: { type: "none", rate: 0, fixedAmount: 0 } })} className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-2.5 py-1 rounded">+ 追加</button>
@@ -349,7 +374,7 @@ export default function Home() {
           </section>
 
           {/* 固定費 */}
-          <section className="border border-border rounded-lg p-4">
+          <section data-guide="costs" className="border border-border rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-semibold">固定費</h2>
               <button onClick={() => addFixedCost({ name: "", monthlyAmount: 0 })} className="bg-muted hover:bg-muted-light text-white text-sm px-2.5 py-1 rounded">+ 追加</button>
@@ -512,7 +537,7 @@ export default function Home() {
           </div>
 
           {/* キャッシュフローグラフ */}
-          <section data-section="chart" className="border border-border rounded-lg p-4">
+          <section data-section="chart" data-guide="chart" className="border border-border rounded-lg p-4">
             <h2 className="text-base font-semibold mb-3">キャッシュフロー推移</h2>
             <CashFlowChart months={result.months} breakEvenMonth={result.breakEvenMonth} compareMonths={compareResult?.months} compareName={compareScenario?.name} />
           </section>
@@ -546,6 +571,36 @@ export default function Home() {
                 </p>
               </div>
             </div>
+          </section>
+
+          {/* ゴール逆算 */}
+          <section className="border border-border rounded-lg p-4">
+            <h2 className="text-base font-semibold mb-3">ゴール逆算</h2>
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-sm text-muted">目標MRR</span>
+              <NumberInput label="" value={targetMrr} onChange={setTargetMrr} step={100000} suffix="円" />
+            </div>
+            {(() => {
+              const goals = calcGoalReverse(targetMrr, state.revenueModel.plans);
+              if (goals.length === 0) return <p className="text-sm text-muted">プランを追加してください</p>;
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                  {goals.map((g) => (
+                    <div key={g.planName} className="border border-border-light rounded p-3">
+                      <p className="text-muted mb-1">{g.planName}</p>
+                      <p className="text-xl font-bold">{g.customers}社</p>
+                      <p className="text-muted">= {fmtMan(g.mrr)}/月</p>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </section>
+
+          {/* サマリー */}
+          <section className="border border-border rounded-lg p-4">
+            <h2 className="text-base font-semibold mb-3">サマリー</h2>
+            <pre className="text-sm whitespace-pre-wrap text-foreground leading-relaxed">{generateSummary(state, result)}</pre>
           </section>
 
           {/* 比較テーブル */}
@@ -729,22 +784,22 @@ function CompareKpis({ current, compare }: { current: TimelineResult; compare: T
   );
 }
 
-function KpiCard({ label, value, color }: { label: string; value: string; color: string }) {
+function KpiCard({ label, value, color, tip }: { label: string; value: string; color: string; tip?: string }) {
   return (
     <div className="border border-border rounded-lg p-3">
-      <p className="text-sm text-muted mb-1">{label}</p>
+      <p className="text-sm text-muted mb-1">{tip ? <Tip text={tip}>{label}</Tip> : label}</p>
       <p className={`text-lg font-bold ${color}`}>{value}</p>
     </div>
   );
 }
 
-function NumberInput({ label, value, onChange, step, suffix, min, max }: {
-  label: string; value: number; onChange: (v: number) => void; step: number; suffix: string; min?: number; max?: number;
+function NumberInput({ label, value, onChange, step, suffix, min, max, tip }: {
+  label: string; value: number; onChange: (v: number) => void; step: number; suffix: string; min?: number; max?: number; tip?: string;
 }) {
   const [editing, setEditing] = useState(false);
   return (
     <div className="flex items-center justify-between gap-3">
-      <label className="text-sm text-muted shrink-0">{label}</label>
+      <label className="text-sm text-muted shrink-0">{tip ? <Tip text={tip}>{label}</Tip> : label}</label>
       <div className="flex items-center gap-1.5">
         {editing ? (
           <input

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { SimState, Employee, FixedCost, OneTimeCost, Loan, TaxConfig, RevenueModel, PricingPlan, Scenario, MonthActual } from "@/types";
 
 const STORAGE_KEY = "mikomi-state-v5";
@@ -77,17 +77,34 @@ function loadScenarios(): Scenario[] {
 
 const ONBOARDING_KEY = "mikomi-onboarded";
 
+const MAX_HISTORY = 50;
+
 export function useSimState() {
   const [state, setState] = useState<SimState>(defaultState);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [onboarded, setOnboarded] = useState(true);
+  const [history, setHistory] = useState<SimState[]>([]);
+  const [future, setFuture] = useState<SimState[]>([]);
+  const skipHistoryRef = useRef(false);
 
   useEffect(() => {
     setState(loadState());
     setScenarios(loadScenarios());
     setOnboarded(localStorage.getItem(ONBOARDING_KEY) === "true");
     setLoaded(true);
+  }, []);
+
+  // history追跡付きsetState
+  const setStateWithHistory = useCallback((updater: SimState | ((prev: SimState) => SimState)) => {
+    setState((prev) => {
+      if (!skipHistoryRef.current) {
+        setHistory((h) => [...h.slice(-MAX_HISTORY), prev]);
+        setFuture([]);
+      }
+      skipHistoryRef.current = false;
+      return typeof updater === "function" ? updater(prev) : updater;
+    });
   }, []);
 
   useEffect(() => {
@@ -103,7 +120,7 @@ export function useSimState() {
   }, [scenarios, loaded]);
 
   const addPlan = useCallback((plan: Omit<PricingPlan, "id">) => {
-    setState((prev) => ({
+    setStateWithHistory((prev) => ({
       ...prev,
       revenueModel: {
         ...prev.revenueModel,
@@ -113,7 +130,7 @@ export function useSimState() {
   }, []);
 
   const updatePlan = useCallback((id: string, updates: Partial<Omit<PricingPlan, "id">>) => {
-    setState((prev) => ({
+    setStateWithHistory((prev) => ({
       ...prev,
       revenueModel: {
         ...prev.revenueModel,
@@ -123,7 +140,7 @@ export function useSimState() {
   }, []);
 
   const removePlan = useCallback((id: string) => {
-    setState((prev) => ({
+    setStateWithHistory((prev) => ({
       ...prev,
       revenueModel: {
         ...prev.revenueModel,
@@ -133,92 +150,92 @@ export function useSimState() {
   }, []);
 
   const setSimulationMonths = useCallback((simulationMonths: number) => {
-    setState((prev) => ({ ...prev, simulationMonths }));
+    setStateWithHistory((prev) => ({ ...prev, simulationMonths }));
   }, []);
 
   const setInitialCash = useCallback((initialCash: number) => {
-    setState((prev) => ({ ...prev, initialCash }));
+    setStateWithHistory((prev) => ({ ...prev, initialCash }));
   }, []);
 
   const updateTax = useCallback((updates: Partial<TaxConfig>) => {
-    setState((prev) => ({ ...prev, tax: { ...prev.tax, ...updates } }));
+    setStateWithHistory((prev) => ({ ...prev, tax: { ...prev.tax, ...updates } }));
   }, []);
 
   const addEmployee = useCallback((employee: Omit<Employee, "id">) => {
-    setState((prev) => ({
+    setStateWithHistory((prev) => ({
       ...prev,
       employees: [...prev.employees, { ...employee, id: crypto.randomUUID() }],
     }));
   }, []);
 
   const updateEmployee = useCallback((id: string, updates: Partial<Omit<Employee, "id">>) => {
-    setState((prev) => ({
+    setStateWithHistory((prev) => ({
       ...prev,
       employees: prev.employees.map((e) => e.id === id ? { ...e, ...updates } : e),
     }));
   }, []);
 
   const removeEmployee = useCallback((id: string) => {
-    setState((prev) => ({ ...prev, employees: prev.employees.filter((e) => e.id !== id) }));
+    setStateWithHistory((prev) => ({ ...prev, employees: prev.employees.filter((e) => e.id !== id) }));
   }, []);
 
   const addFixedCost = useCallback((cost: Omit<FixedCost, "id">) => {
-    setState((prev) => ({
+    setStateWithHistory((prev) => ({
       ...prev,
       fixedCosts: [...prev.fixedCosts, { ...cost, id: crypto.randomUUID() }],
     }));
   }, []);
 
   const updateFixedCost = useCallback((id: string, updates: Partial<Omit<FixedCost, "id">>) => {
-    setState((prev) => ({
+    setStateWithHistory((prev) => ({
       ...prev,
       fixedCosts: prev.fixedCosts.map((c) => c.id === id ? { ...c, ...updates } : c),
     }));
   }, []);
 
   const removeFixedCost = useCallback((id: string) => {
-    setState((prev) => ({ ...prev, fixedCosts: prev.fixedCosts.filter((c) => c.id !== id) }));
+    setStateWithHistory((prev) => ({ ...prev, fixedCosts: prev.fixedCosts.filter((c) => c.id !== id) }));
   }, []);
 
   const addOneTimeCost = useCallback((cost: Omit<OneTimeCost, "id">) => {
-    setState((prev) => ({
+    setStateWithHistory((prev) => ({
       ...prev,
       oneTimeCosts: [...prev.oneTimeCosts, { ...cost, id: crypto.randomUUID() }],
     }));
   }, []);
 
   const updateOneTimeCost = useCallback((id: string, updates: Partial<Omit<OneTimeCost, "id">>) => {
-    setState((prev) => ({
+    setStateWithHistory((prev) => ({
       ...prev,
       oneTimeCosts: prev.oneTimeCosts.map((c) => c.id === id ? { ...c, ...updates } : c),
     }));
   }, []);
 
   const removeOneTimeCost = useCallback((id: string) => {
-    setState((prev) => ({ ...prev, oneTimeCosts: prev.oneTimeCosts.filter((c) => c.id !== id) }));
+    setStateWithHistory((prev) => ({ ...prev, oneTimeCosts: prev.oneTimeCosts.filter((c) => c.id !== id) }));
   }, []);
 
   const addLoan = useCallback((loan: Omit<Loan, "id">) => {
-    setState((prev) => ({
+    setStateWithHistory((prev) => ({
       ...prev,
       loans: [...prev.loans, { ...loan, id: crypto.randomUUID() }],
     }));
   }, []);
 
   const updateLoan = useCallback((id: string, updates: Partial<Omit<Loan, "id">>) => {
-    setState((prev) => ({
+    setStateWithHistory((prev) => ({
       ...prev,
       loans: prev.loans.map((l) => l.id === id ? { ...l, ...updates } : l),
     }));
   }, []);
 
   const removeLoan = useCallback((id: string) => {
-    setState((prev) => ({ ...prev, loans: prev.loans.filter((l) => l.id !== id) }));
+    setStateWithHistory((prev) => ({ ...prev, loans: prev.loans.filter((l) => l.id !== id) }));
   }, []);
 
   // 実績
   const updateActual = useCallback((month: number, updates: Partial<Omit<MonthActual, "month">>) => {
-    setState((prev) => {
+    setStateWithHistory((prev) => {
       const existing = prev.actuals.find((a) => a.month === month);
       if (existing) {
         return {
@@ -241,9 +258,27 @@ export function useSimState() {
     ]);
   }, [state]);
 
+  const overwriteScenario = useCallback((id: string) => {
+    setScenarios((prev) => prev.map((s) => s.id === id ? { ...s, state: structuredClone(state) } : s));
+  }, [state]);
+
+  const renameScenario = useCallback((id: string, name: string) => {
+    setScenarios((prev) => prev.map((s) => s.id === id ? { ...s, name } : s));
+  }, []);
+
   const loadScenario = useCallback((id: string) => {
     const scenario = scenarios.find((s) => s.id === id);
     if (scenario) setState(structuredClone(scenario.state));
+  }, [scenarios]);
+
+  const duplicateScenario = useCallback((id: string) => {
+    const scenario = scenarios.find((s) => s.id === id);
+    if (scenario) {
+      setScenarios((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), name: `${scenario.name} (コピー)`, state: structuredClone(scenario.state) },
+      ]);
+    }
   }, [scenarios]);
 
   const deleteScenario = useCallback((id: string) => {
@@ -255,6 +290,24 @@ export function useSimState() {
     setScenarios(data.scenarios);
   }, []);
 
+  const undo = useCallback(() => {
+    if (history.length === 0) return;
+    const prev = history[history.length - 1];
+    setFuture((f) => [state, ...f]);
+    setHistory((h) => h.slice(0, -1));
+    skipHistoryRef.current = true;
+    setState(prev);
+  }, [history, state]);
+
+  const redo = useCallback(() => {
+    if (future.length === 0) return;
+    const next = future[0];
+    setHistory((h) => [...h, state]);
+    setFuture((f) => f.slice(1));
+    skipHistoryRef.current = true;
+    setState(next);
+  }, [future, state]);
+
   const completeOnboarding = useCallback((initialState: SimState) => {
     setState(initialState);
     setOnboarded(true);
@@ -263,6 +316,8 @@ export function useSimState() {
 
   return {
     state, scenarios, loaded, onboarded,
+    canUndo: history.length > 0, canRedo: future.length > 0,
+    undo, redo,
     completeOnboarding,
     addPlan, updatePlan, removePlan, setSimulationMonths, setInitialCash, updateTax,
     addEmployee, updateEmployee, removeEmployee,
@@ -270,7 +325,7 @@ export function useSimState() {
     addOneTimeCost, updateOneTimeCost, removeOneTimeCost,
     addLoan, updateLoan, removeLoan,
     updateActual,
-    saveScenario, loadScenario, deleteScenario,
+    saveScenario, overwriteScenario, renameScenario, loadScenario, duplicateScenario, deleteScenario,
     importState,
   };
 }

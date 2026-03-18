@@ -313,3 +313,97 @@ export function calcTimeline(state: SimState): TimelineResult {
 
   return { months, breakEvenMonth, cashOutMonth, maxEmployeesAffordable, runway, totalLoanBalance, breakEvenAnalysis };
 }
+
+// ゴール逆算: 目標MRRから必要顧客数を計算
+export function calcGoalReverse(
+  targetMrr: number,
+  plans: SimState["revenueModel"]["plans"]
+): { planName: string; customers: number; mrr: number }[] {
+  if (plans.length === 0 || targetMrr <= 0) return [];
+
+  const totalNewPerMonth = plans.reduce((s, p) => s + p.monthlyNewCustomers, 0);
+  return plans.map((plan) => {
+    const ratio = totalNewPerMonth > 0 ? plan.monthlyNewCustomers / totalNewPerMonth : 1 / plans.length;
+    const planTargetMrr = targetMrr * ratio;
+    const customers = plan.unitPrice > 0 ? Math.ceil(planTargetMrr / plan.unitPrice) : 0;
+    return {
+      planName: plan.name,
+      customers,
+      mrr: customers * plan.unitPrice,
+    };
+  });
+}
+
+// サマリーテキスト自動生成
+export function generateSummary(state: SimState, result: TimelineResult): string {
+  const lastMonth = result.months[result.months.length - 1];
+  if (!lastMonth) return "データがありません。";
+
+  const lines: string[] = [];
+
+  // 概要
+  const planNames = state.revenueModel.plans.map((p) => p.name).join("・");
+  lines.push(`${planNames || "未設定"}の${state.simulationMonths}ヶ月シミュレーション。`);
+  lines.push(`初期資金${fmtManInternal(state.initialCash)}、最終月MRR${fmtManInternal(lastMonth.mrr)}（${lastMonth.customers}社）。`);
+
+  // 黒字化
+  if (result.breakEvenMonth) {
+    lines.push(`${result.breakEvenMonth}ヶ月目に単月黒字化。`);
+  } else {
+    lines.push(`シミュレーション期間内に黒字化に至りません。`);
+  }
+
+  // キャッシュ
+  if (lastMonth.cashBalance >= 0) {
+    lines.push(`最終月のキャッシュ残高は${fmtManInternal(lastMonth.cashBalance)}。`);
+  } else {
+    lines.push(`最終月のキャッシュは${fmtManInternal(lastMonth.cashBalance)}で赤字です。`);
+  }
+
+  if (result.cashOutMonth) {
+    lines.push(`${result.cashOutMonth}ヶ月目に資金が枯渇します。早急な対策が必要です。`);
+  }
+
+  // ランウェイ
+  if (result.runway !== null) {
+    lines.push(`現在のペースで残り約${result.runway}ヶ月のランウェイがあります。`);
+  }
+
+  // 人件費
+  if (state.employees.length > 0) {
+    const totalPersonnelCost = lastMonth.totalPersonnelCost;
+    const personnelRatio = lastMonth.totalCosts > 0 ? Math.round((totalPersonnelCost / lastMonth.totalCosts) * 100) : 0;
+    lines.push(`社員${state.employees.length}名。人件費はコスト全体の${personnelRatio}%を占めます。`);
+  }
+
+  // 融資
+  if (state.loans.length > 0) {
+    const totalLoan = state.loans.reduce((s, l) => s + l.amount, 0);
+    lines.push(`融資総額${fmtManInternal(totalLoan)}。残高${fmtManInternal(result.totalLoanBalance)}。`);
+  }
+
+  // 損益分岐
+  const bea = result.breakEvenAnalysis;
+  if (bea.breakEvenCustomers > 0) {
+    lines.push(`損益分岐点は${bea.breakEvenCustomers}社（MRR ${fmtManInternal(bea.breakEvenMrr)}）。${bea.margin >= 0 ? `現在${bea.margin}社の余裕があります。` : `あと${Math.abs(bea.margin)}社不足しています。`}`);
+  }
+
+  // リスク
+  const risks: string[] = [];
+  if (result.cashOutMonth && result.cashOutMonth <= 12) risks.push("1年以内の資金枯渇");
+  if (bea.margin < 0) risks.push("損益分岐未達");
+  if (lastMonth.profitAfterTax < 0) risks.push("最終月が赤字");
+  if (state.employees.length > 0 && lastMonth.totalPersonnelCost / Math.max(1, lastMonth.mrr) > 0.7) risks.push("人件費率が高い（70%超）");
+
+  if (risks.length > 0) {
+    lines.push(`注意点: ${risks.join("、")}。`);
+  }
+
+  return lines.join("\n");
+}
+
+function fmtManInternal(n: number): string {
+  const man = n / 10000;
+  if (Math.abs(man) >= 100) return Math.round(man).toLocaleString("ja-JP") + "万円";
+  return man.toFixed(1) + "万円";
+}
