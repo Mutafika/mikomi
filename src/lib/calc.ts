@@ -49,6 +49,17 @@ export interface BreakEvenAnalysis {
   margin: number; // 損益分岐からの余裕（顧客数）
 }
 
+export interface UnitEconomics {
+  ltv: number; // 顧客生涯価値
+  cac: number; // 顧客獲得コスト
+  ltvCacRatio: number; // LTV/CAC比率
+  cacPaybackMonths: number; // CAC回収期間（月）
+  avgUnitPrice: number; // 加重平均単価
+  avgChurnRate: number; // 加重平均解約率
+  // 月次推移
+  monthly: { month: number; cac: number; ltv: number; ratio: number }[];
+}
+
 export interface TimelineResult {
   months: MonthData[];
   breakEvenMonth: number | null;
@@ -57,6 +68,7 @@ export interface TimelineResult {
   runway: number | null;
   totalLoanBalance: number;
   breakEvenAnalysis: BreakEvenAnalysis;
+  unitEconomics: UnitEconomics;
 }
 
 function getRampRate(employee: Employee, currentMonth: number): number {
@@ -311,7 +323,55 @@ export function calcTimeline(state: SimState): TimelineResult {
     margin: currentCustomers - breakEvenCustomers,
   };
 
-  return { months, breakEvenMonth, cashOutMonth, maxEmployeesAffordable, runway, totalLoanBalance, breakEvenAnalysis };
+  // Unit Economics
+  const weightedAvgPriceUE = lastMonth && lastMonth.customers > 0
+    ? lastMonth.mrr / lastMonth.customers
+    : plans.length > 0 ? plans.reduce((s, p) => s + p.unitPrice, 0) / plans.length : 0;
+
+  const weightedChurnRate = plans.length > 0
+    ? plans.reduce((s, p) => {
+        const pc = planCustomers.get(p.id) ?? 0;
+        return s + p.monthlyChurnRate * pc;
+      }, 0) / Math.max(1, lastMonth?.customers ?? 1)
+    : 0.03;
+
+  const ltv = weightedChurnRate > 0 ? Math.round(weightedAvgPriceUE / weightedChurnRate) : 0;
+
+  // 広告費を固定費から抽出（名前に「広告」を含むもの）
+  const adSpend = fixedCosts
+    .filter((c) => c.name.includes("広告"))
+    .reduce((s, c) => s + c.monthlyAmount, 0);
+
+  // 月次Unit Economics
+  const monthlyUE = months.map((m) => {
+    const salesCost = m.activeEmployees
+      .filter((e) => e.actualAcquisition > 0)
+      .reduce((s, e) => s + e.salary + e.socialInsurance + e.incentiveCost, 0);
+    const totalAcqCost = salesCost + adSpend;
+    const totalAcq = m.activeEmployees.reduce((s, e) => s + e.actualAcquisition, 0)
+      + plans.reduce((s, p) => s + p.monthlyNewCustomers, 0);
+    const monthCac = totalAcq > 0 ? Math.round(totalAcqCost / totalAcq) : 0;
+    const monthLtv = weightedChurnRate > 0 ? Math.round(weightedAvgPriceUE / weightedChurnRate) : 0;
+    const ratio = monthCac > 0 ? Math.round((monthLtv / monthCac) * 10) / 10 : 0;
+    return { month: m.month, cac: monthCac, ltv: monthLtv, ratio };
+  });
+
+  // 最終月ベースのCAC
+  const lastUE = monthlyUE[monthlyUE.length - 1];
+  const cac = lastUE?.cac ?? 0;
+  const ltvCacRatio = cac > 0 ? Math.round((ltv / cac) * 10) / 10 : 0;
+  const cacPaybackMonths = weightedAvgPriceUE > 0 && cac > 0
+    ? Math.round((cac / weightedAvgPriceUE) * 10) / 10
+    : 0;
+
+  const unitEconomics: UnitEconomics = {
+    ltv, cac, ltvCacRatio, cacPaybackMonths,
+    avgUnitPrice: Math.round(weightedAvgPriceUE),
+    avgChurnRate: Math.round(weightedChurnRate * 1000) / 1000,
+    monthly: monthlyUE,
+  };
+
+  return { months, breakEvenMonth, cashOutMonth, maxEmployeesAffordable, runway, totalLoanBalance, breakEvenAnalysis, unitEconomics };
 }
 
 // ゴール逆算: 目標MRRから必要顧客数を計算
@@ -388,12 +448,19 @@ export function generateSummary(state: SimState, result: TimelineResult): string
     lines.push(`損益分岐点は${bea.breakEvenCustomers}社（MRR ${fmtManInternal(bea.breakEvenMrr)}）。${bea.margin >= 0 ? `現在${bea.margin}社の余裕があります。` : `あと${Math.abs(bea.margin)}社不足しています。`}`);
   }
 
+  // Unit Economics
+  const ue = result.unitEconomics;
+  if (ue.ltv > 0 && ue.cac > 0) {
+    lines.push(`Unit Economics: LTV ${fmtManInternal(ue.ltv)} / CAC ${fmtManInternal(ue.cac)} = ${ue.ltvCacRatio}倍。回収${ue.cacPaybackMonths}ヶ月。${ue.ltvCacRatio >= 3 ? "健全です。" : "改善が必要です。"}`);
+  }
+
   // リスク
   const risks: string[] = [];
   if (result.cashOutMonth && result.cashOutMonth <= 12) risks.push("1年以内の資金枯渇");
   if (bea.margin < 0) risks.push("損益分岐未達");
   if (lastMonth.profitAfterTax < 0) risks.push("最終月が赤字");
   if (state.employees.length > 0 && lastMonth.totalPersonnelCost / Math.max(1, lastMonth.mrr) > 0.7) risks.push("人件費率が高い（70%超）");
+  if (ue.ltvCacRatio > 0 && ue.ltvCacRatio < 3) risks.push("LTV/CAC比率が3未満");
 
   if (risks.length > 0) {
     lines.push(`注意点: ${risks.join("、")}。`);

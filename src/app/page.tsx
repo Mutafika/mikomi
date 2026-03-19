@@ -573,6 +573,42 @@ export default function Home() {
             </div>
           </section>
 
+          {/* Unit Economics */}
+          <section className="border border-border rounded-lg p-4">
+            <h2 className="text-base font-semibold mb-3"><Tip text="顧客1人あたりの経済性。この事業は顧客を取るほど儲かるか？">Unit Economics</Tip></h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+              <div>
+                <p className="text-muted mb-1"><Tip text="顧客生涯価値。1顧客が解約するまでに払う総額。月額÷解約率">LTV</Tip></p>
+                <p className="text-xl font-bold">{fmtMan(result.unitEconomics.ltv)}</p>
+              </div>
+              <div>
+                <p className="text-muted mb-1"><Tip text="顧客獲得コスト。1顧客を獲るのにかかる金額。(営業費+広告費)÷獲得数">CAC</Tip></p>
+                <p className="text-xl font-bold">{fmtMan(result.unitEconomics.cac)}</p>
+              </div>
+              <div>
+                <p className="text-muted mb-1"><Tip text="3以上が健全。1以下は赤字体質">LTV / CAC</Tip></p>
+                <p className={`text-xl font-bold ${result.unitEconomics.ltvCacRatio >= 3 ? "text-green-400" : result.unitEconomics.ltvCacRatio >= 1 ? "text-yellow-400" : "text-red-400"}`}>
+                  {result.unitEconomics.ltvCacRatio > 0 ? `${result.unitEconomics.ltvCacRatio}x` : "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted mb-1"><Tip text="獲得コストを何ヶ月で回収するか。12ヶ月以内が目安">CAC回収</Tip></p>
+                <p className={`text-xl font-bold ${result.unitEconomics.cacPaybackMonths <= 12 ? "text-green-400" : "text-yellow-400"}`}>
+                  {result.unitEconomics.cacPaybackMonths > 0 ? `${result.unitEconomics.cacPaybackMonths}ヶ月` : "-"}
+                </p>
+              </div>
+            </div>
+            <div className="text-xs text-muted space-y-0.5">
+              <p>加重平均単価: {result.unitEconomics.avgUnitPrice.toLocaleString()}円/月　解約率: {(result.unitEconomics.avgChurnRate * 100).toFixed(1)}%/月</p>
+              {result.unitEconomics.ltvCacRatio > 0 && result.unitEconomics.ltvCacRatio < 3 && (
+                <p className="text-yellow-400">LTV/CAC比率が3未満です。獲得効率の改善か単価アップを検討してください。</p>
+              )}
+              {result.unitEconomics.cacPaybackMonths > 12 && (
+                <p className="text-yellow-400">回収に12ヶ月以上かかります。キャッシュフローへの影響に注意。</p>
+              )}
+            </div>
+          </section>
+
           {/* ゴール逆算 */}
           <section className="border border-border rounded-lg p-4">
             <h2 className="text-base font-semibold mb-3">ゴール逆算</h2>
