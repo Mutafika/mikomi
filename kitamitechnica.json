@@ -1,0 +1,143 @@
+{
+  "state": {
+    "initialCash": 0,
+    "simulationMonths": 60,
+    "revenueModel": {
+      "type": "mrr",
+      "plans": [
+        {
+          "id": "d7041953-ae94-460d-b023-c8ddbe527c2f",
+          "name": "もうこれだけ SaaS",
+          "unitPrice": 25000,
+          "initialCustomers": 0,
+          "monthlyNewCustomers": 0,
+          "monthlyChurnRate": 0.01
+        }
+      ]
+    },
+    "loans": [
+      {
+        "id": "97d80973-49d9-402d-89ac-8052aceff360",
+        "name": "日本政策金融公庫",
+        "amount": 7000000,
+        "annualRate": 0.02,
+        "termMonths": 60,
+        "graceMonths": 24,
+        "startMonth": 1,
+        "repaymentType": "equal-payment"
+      }
+    ],
+    "employees": [
+      {
+        "id": "6bec89d8-ce16-4675-85e1-342d050d8ee1",
+        "name": "CEO（代表）",
+        "role": "代表取締役",
+        "monthlySalary": 300000,
+        "hireMonth": 1,
+        "onboardingCost": 0,
+        "annualRaiseRate": 0.03,
+        "monthlyAcquisition": 1,
+        "rampUpMonths": 0,
+        "incentive": {
+          "type": "none",
+          "rate": 0,
+          "fixedAmount": 0
+        }
+      },
+      {
+        "id": "813312c1-accb-49b9-bed9-45a9abd4b758",
+        "name": "カスタマーサポート（パート）",
+        "role": "サポート",
+        "monthlySalary": 125000,
+        "hireMonth": 13,
+        "onboardingCost": 50000,
+        "annualRaiseRate": 0.03,
+        "monthlyAcquisition": 0,
+        "rampUpMonths": 0,
+        "incentive": {
+          "type": "none",
+          "rate": 0,
+          "fixedAmount": 0
+        }
+      },
+      {
+        "id": "8fe015dd-1a08-4165-a92f-1937fdef57a5",
+        "name": "エンジニア",
+        "role": "エンジニア",
+        "monthlySalary": 375000,
+        "hireMonth": 25,
+        "onboardingCost": 100000,
+        "annualRaiseRate": 0.03,
+        "monthlyAcquisition": 0,
+        "rampUpMonths": 0,
+        "incentive": {
+          "type": "none",
+          "rate": 0,
+          "fixedAmount": 0
+        }
+      },
+      {
+        "id": "b6bcebb5-d406-48cb-a45c-33a6b4a1003a",
+        "name": "営業1",
+        "role": "営業",
+        "monthlySalary": 250000,
+        "hireMonth": 25,
+        "onboardingCost": 100000,
+        "annualRaiseRate": 0.03,
+        "monthlyAcquisition": 3,
+        "rampUpMonths": 2,
+        "incentive": {
+          "type": "none",
+          "rate": 0,
+          "fixedAmount": 0
+        }
+      },
+      {
+        "id": "e35ffb45-392f-401f-a169-ce8d44d5c5b0",
+        "name": "営業2",
+        "role": "営業",
+        "monthlySalary": 250000,
+        "hireMonth": 49,
+        "onboardingCost": 100000,
+        "annualRaiseRate": 0.03,
+        "monthlyAcquisition": 2,
+        "rampUpMonths": 2,
+        "incentive": {
+          "type": "none",
+          "rate": 0,
+          "fixedAmount": 0
+        }
+      }
+    ],
+    "oneTimeCosts": [],
+    "actuals": [],
+    "tax": {
+      "corporateTaxRate": 0.25,
+      "consumptionTaxRate": 0.1,
+      "consumptionTaxExemptMonths": 24
+    },
+    "fixedCosts": [
+      {
+        "id": "4bd5fe6d-2f27-4d62-9174-2b78380f7bd9",
+        "name": "オフィス/会議室",
+        "monthlyAmount": 10000
+      },
+      {
+        "id": "f499c2c0-d8c2-4215-9543-b0f126f50b75",
+        "name": "機材/ソフトウェア",
+        "monthlyAmount": 20000
+      },
+      {
+        "id": "87ea1517-6646-4f93-ac37-a2c426aa2b38",
+        "name": "通信費（サーバー/ドメイン等）",
+        "monthlyAmount": 40000
+      },
+      {
+        "id": "590a3f42-d25b-4cb0-9123-8015594900a8",
+        "name": "その他経費（保険/交通/雑費）",
+        "monthlyAmount": 55000
+      }
+    ]
+  },
+  "scenarios": []
+}

@@ -29,8 +29,10 @@ function fmtMan(n: number): string {
 export default function Home() {
   const {
     state, scenarios, loaded, onboarded,
+    projects, currentProject,
     canUndo, canRedo, undo, redo,
     completeOnboarding,
+    createProjectAndSwitch, switchProject, deleteProjectById,
     addPlan, updatePlan, removePlan, setSimulationMonths, setInitialCash, updateTax,
     addEmployee, updateEmployee, removeEmployee,
     addFixedCost, updateFixedCost, removeFixedCost,
@@ -45,6 +47,8 @@ export default function Home() {
   const [compareId, setCompareId] = useState<string | null>(null);
   const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
   const [showScenarioModal, setShowScenarioModal] = useState(false);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
   const [targetMrr, setTargetMrr] = useState(1000000);
   const [isDark, setIsDark] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -120,14 +124,16 @@ export default function Home() {
       <div className="flex items-center gap-3 mb-4">
         <h1 className="text-xl font-bold">Mikomi</h1>
         <span className="text-muted text-sm">
-          {activeScenarioId ? scenarios.find((s) => s.id === activeScenarioId)?.name : "未保存"}
-          {compareId && <span className="ml-2 text-yellow-400">vs {scenarios.find((s) => s.id === compareId)?.name}</span>}
+          {currentProject && <span className="font-medium text-foreground">{currentProject}</span>}
+          {activeScenarioId && <span className="ml-1">/ {scenarios.find((s) => s.id === activeScenarioId)?.name}</span>}
+          {compareId && <span className="ml-1 text-yellow-400">vs {scenarios.find((s) => s.id === compareId)?.name}</span>}
         </span>
 
         <div data-print="hide" className="flex items-center gap-1">
           <button onClick={undo} disabled={!canUndo} className="bg-border hover:bg-surface-hover text-foreground text-sm px-2 py-1 rounded disabled:opacity-30" title="元に戻す">↩</button>
           <button onClick={redo} disabled={!canRedo} className="bg-border hover:bg-surface-hover text-foreground text-sm px-2 py-1 rounded disabled:opacity-30" title="やり直す">↪</button>
           <span className="w-px h-5 bg-border mx-1" />
+          <button onClick={() => setShowProjectModal(true)} className="bg-border hover:bg-surface-hover text-foreground text-sm px-3 py-1 rounded">プロジェクト</button>
           <button data-guide="scenario" onClick={() => setShowScenarioModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded">シナリオ</button>
           <button onClick={handleExport} className="bg-border hover:bg-surface-hover text-foreground text-sm px-2 py-1 rounded">書出</button>
           <button onClick={() => fileInputRef.current?.click()} className="bg-border hover:bg-surface-hover text-foreground text-sm px-2 py-1 rounded">取込</button>
@@ -212,6 +218,54 @@ export default function Home() {
         </div>
       )}
 
+      {/* プロジェクトモーダル */}
+      {showProjectModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={() => setShowProjectModal(false)}>
+          <div className="bg-background border border-border rounded-lg shadow-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold">プロジェクト</h2>
+              <button onClick={() => setShowProjectModal(false)} className="text-muted hover:text-foreground text-xl">✕</button>
+            </div>
+
+            <div className="flex gap-2 mb-4">
+              <input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="新しいプロジェクト名" className="border border-border rounded px-3 py-2 text-sm flex-1" />
+              <button
+                onClick={async () => {
+                  if (newProjectName.trim()) {
+                    await createProjectAndSwitch(newProjectName.trim());
+                    setNewProjectName("");
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded"
+              >作成</button>
+            </div>
+
+            {projects.length === 0 ? (
+              <p className="text-muted text-sm text-center py-4">プロジェクトなし</p>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {projects.map((p) => (
+                  <div key={p} className={`flex items-center gap-3 p-3 rounded border ${currentProject === p ? "border-blue-500 bg-blue-500/10" : "border-border"}`}>
+                    <span className="flex-1 font-medium">
+                      {currentProject === p && <span className="text-blue-400 mr-1">●</span>}
+                      {p}
+                    </span>
+                    <button
+                      onClick={async () => { await switchProject(p); setShowProjectModal(false); }}
+                      className={`text-sm px-3 py-1 rounded ${currentProject === p ? "bg-blue-600 text-white" : "bg-surface hover:bg-surface-hover border border-border"}`}
+                    >{currentProject === p ? "選択中" : "開く"}</button>
+                    <button
+                      onClick={async () => { if (confirm(`「${p}」を削除しますか？`)) await deleteProjectById(p); }}
+                      className="text-red-400 hover:text-red-300 text-sm"
+                    >✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* KPIカード */}
       <div data-section="kpi" className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <KpiCard label="単月黒字化" value={result.breakEvenMonth ? `${result.breakEvenMonth}ヶ月目` : "期間内に達成せず"} color={result.breakEvenMonth ? "text-green-400" : "text-red-400"} tip="売上がコストを上回る最初の月" />
@@ -237,7 +291,7 @@ export default function Home() {
           <section className="border border-border rounded-lg p-4">
             <h2 className="text-base font-semibold mb-3">基本設定</h2>
             <div className="space-y-3">
-              <NumberInput label="初期資金" value={state.initialCash} onChange={setInitialCash} step={1000000} suffix="円" tip="事業開始時の手持ち資金。自己資金+出資など" />
+              <NumberInput label="自己資本" value={state.initialCash} onChange={setInitialCash} step={1000000} suffix="円" tip="融資を除いた手持ち資金。出資金・自己資金など" />
               <NumberInput label="シミュレーション期間" value={state.simulationMonths} onChange={setSimulationMonths} step={6} suffix="ヶ月" min={6} max={60} tip="何ヶ月先まで予測するか。通常24-36ヶ月" />
             </div>
           </section>
@@ -521,16 +575,22 @@ export default function Home() {
                   <span>{state.oneTimeCosts.length}件（{fmtMan(state.oneTimeCosts.reduce((s, c) => s + c.amount, 0))}）</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted">融資</span>
-                  <span>{state.loans.length}件（{fmtMan(state.loans.reduce((s, l) => s + l.amount, 0))}）</span>
-                </div>
-                <div className="flex justify-between border-t border-border pt-2">
-                  <span className="text-muted">初期資金</span>
-                  <span className="font-semibold">{fmtMan(state.initialCash)}</span>
-                </div>
-                <div className="flex justify-between">
                   <span className="text-muted">期間</span>
                   <span>{state.simulationMonths}ヶ月</span>
+                </div>
+                <div className="border-t border-border pt-2 mt-1 space-y-1">
+                  <div className="flex justify-between text-muted">
+                    <span>自己資本</span>
+                    <span>{fmtMan(state.initialCash)}</span>
+                  </div>
+                  <div className="flex justify-between text-muted">
+                    <span>融資</span>
+                    <span>{fmtMan(state.loans.reduce((s, l) => s + l.amount, 0))}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-border pt-1">
+                    <span className="font-semibold">開始時キャッシュ</span>
+                    <span className="font-semibold">{fmtMan(state.initialCash + state.loans.reduce((s, l) => s + l.amount, 0))}</span>
+                  </div>
                 </div>
               </div>
             </section>

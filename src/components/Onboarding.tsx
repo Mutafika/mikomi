@@ -225,7 +225,7 @@ export function Onboarding({ onComplete }: Props) {
         </div>
 
         <div className="space-y-4 mb-8">
-          <Field label="初期資金（手持ち）" value={overrides.initialCash ?? template.state.initialCash ?? 3000000} onChange={(v) => setOverrides({ ...overrides, initialCash: v })} suffix="円" step={1000000} hint="自己資金や出資金" />
+          <Field label="自己資本（手持ち）" value={overrides.initialCash ?? template.state.initialCash ?? 3000000} onChange={(v) => setOverrides({ ...overrides, initialCash: v })} suffix="円" step={1000000} hint="融資を除いた自己資金・出資金" />
           <Field label="シミュレーション期間" value={overrides.simulationMonths ?? template.state.simulationMonths ?? 24} onChange={(v) => setOverrides({ ...overrides, simulationMonths: v })} suffix="ヶ月" step={6} hint="通常24-36ヶ月" />
           {mainPlan && (
             <>

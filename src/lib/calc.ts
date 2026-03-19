@@ -139,7 +139,7 @@ function calcLoanMonth(
 }
 
 export function calcTimeline(state: SimState): TimelineResult {
-  const { revenueModel, employees, fixedCosts, oneTimeCosts, loans, tax, simulationMonths, initialCash } = state;
+  const { revenueModel, employees, fixedCosts, oneTimeCosts = [], loans, tax, simulationMonths, initialCash } = state;
   const months: MonthData[] = [];
   const plans = revenueModel.plans;
 
@@ -404,7 +404,8 @@ export function generateSummary(state: SimState, result: TimelineResult): string
   // 概要
   const planNames = state.revenueModel.plans.map((p) => p.name).join("・");
   lines.push(`${planNames || "未設定"}の${state.simulationMonths}ヶ月シミュレーション。`);
-  lines.push(`初期資金${fmtManInternal(state.initialCash)}、最終月MRR${fmtManInternal(lastMonth.mrr)}（${lastMonth.customers}社）。`);
+  const totalLoans = state.loans.reduce((s, l) => s + l.amount, 0);
+  lines.push(`自己資本${fmtManInternal(state.initialCash)}＋融資${fmtManInternal(totalLoans)}＝開始時${fmtManInternal(state.initialCash + totalLoans)}、最終月MRR${fmtManInternal(lastMonth.mrr)}（${lastMonth.customers}社）。`);
 
   // 黒字化
   if (result.breakEvenMonth) {

@@ -14,7 +14,7 @@ interface Check {
 export function ProgressBar({ state }: Props) {
   const checks: Check[] = [
     { label: "料金プラン", done: state.revenueModel.plans.length > 0 },
-    { label: "初期資金", done: state.initialCash > 0 },
+    { label: "自己資本", done: state.initialCash > 0 },
     { label: "固定費", done: state.fixedCosts.length > 0 },
     { label: "初期費用", done: state.oneTimeCosts.length > 0 },
     { label: "採用計画", done: state.employees.length > 0 },
